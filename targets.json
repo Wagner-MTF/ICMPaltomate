@@ -1,8 +1,7 @@
 {
     "nome_origem": "localhost",
-    "intervalo_minutos": 5,
+    "intervalo_minutos": 2,
     "destinos": [
-        "8.8.8.8",
         "192.168.15.1"
     ]
 }
