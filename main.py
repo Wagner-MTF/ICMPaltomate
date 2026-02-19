@@ -2,74 +2,92 @@ import subprocess
 import pandas as pd
 import json
 import os
+import time
 from datetime import datetime
 
-# Nome do sistema para o portfólio
 SISTEMA = "ICMPaltomate"
 
-def extrair_latencia(saida_cmd):
-    """Extrai o tempo médio (ms) da resposta do comando ping."""
+def extrair_ms(saida_cmd):
+    """Extrai o número de milissegundos de forma robusta."""
     try:
-        # No Windows, buscamos por 'media =' ou 'average ='
-        if "media =" in saida_cmd.lower():
-            return saida_cmd.lower().split("media =")[-1].replace("ms", "").strip()
+        # Tenta encontrar o padrão de tempo médio no final do ping
+        # O Windows costuma usar 'media =' ou 'average ='
+        import re
+        # Busca por um número seguido de 'ms' logo após 'media =' ou 'average ='
+        busca = re.search(r"(?:media|average)\s*=\s*(\d+)\s*ms", saida_cmd.lower())
+        if busca:
+            return busca.group(1) # Retorna apenas o número
+        
+        # Se não achou a média, tenta pegar o tempo do primeiro pacote
+        busca_individual = re.search(r"(?:tempo|time)[=<](\d+)\s*ms", saida_cmd.lower())
+        if busca_individual:
+            return busca_individual.group(1)
+            
         return "N/A"
     except:
         return "Erro"
 
 def disparar_ping(host, origem):
-    """Executa o comando no CMD e organiza os dados."""
-    print(f"[{SISTEMA}] Verificando: {host}...")
+    # Captura o momento exato do início desta verificação
+    data_inicio = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    # -n 2 envia dois pacotes para ser rápido mas preciso
+    print(f"[{data_inicio}] {SISTEMA} -> Verificando {host}...")
+    
     comando = ["ping", "-n", "2", host]
     execucao = subprocess.run(comando, capture_output=True, text=True)
     
-    # Se houver 'TTL' na resposta, o destino está online
     status = "Online" if "TTL=" in execucao.stdout else "Offline"
-    latencia = extrair_latencia(execucao.stdout) if status == "Online" else "---"
+    ms = extrair_ms(execucao.stdout) if status == "Online" else "---"
     
+    # Montando a estrutura conforme solicitado
     return {
-        "Data_Hora": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        "Sistema": SISTEMA,
+        "Data_Inicio_Captura": data_inicio,
+        "Nome_Sistema": SISTEMA,
         "Origem": origem,
         "Destino": host,
-        "Status": status,
-        "Latencia_ms": latencia
+        "Milisegundos": ms,
+        "Status": status
     }
 
-def salvar_no_excel(novos_dados, nome_arquivo="log_ICMPaltomate.xlsx"):
-    """Salva os resultados em uma planilha Excel, acumulando os dados."""
+def salvar_no_excel(novos_dados):
+    arquivo = "log_ICMPaltomate.xlsx"
     df_novo = pd.DataFrame(novos_dados)
-    
-    if os.path.exists(nome_arquivo):
-        df_antigo = pd.read_excel(nome_arquivo)
+    if os.path.exists(arquivo):
+        df_antigo = pd.read_excel(arquivo)
         df_final = pd.concat([df_antigo, df_novo], ignore_index=True)
     else:
         df_final = df_novo
-        
-    df_final.to_excel(nome_arquivo, index=False)
-    print(f"✅ Relatório atualizado: {nome_arquivo}")
+    df_final.to_excel(arquivo, index=False)
 
-# --- EXECUÇÃO PRINCIPAL ---
 if __name__ == "__main__":
-    print(f"--- INICIANDO {SISTEMA} ---")
+    print(f"=== {SISTEMA} INICIADO ===")
     
     try:
-        # 1. Carregar destinos
-        with open('targets.json', 'r') as f:
-            config = json.load(f)
-        
-        # 2. Executar pings
-        resultados = []
-        for alvo in config['destinos']:
-            res = disparar_ping(alvo, config['nome_origem'])
-            resultados.append(res)
-        
-        # 3. Salvar no Excel
-        salvar_no_excel(resultados)
-        
-    except FileNotFoundError:
-        print("❌ Erro: O arquivo 'targets.json' não foi encontrado!")
+        while True:
+            # Carregar configurações
+            with open('targets.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            origem = config['nome_origem']
+            intervalo_min = config['intervalo_minutos']
+            alvos = config['destinos']
+            
+            resultados_rodada = []
+            for alvo in alvos:
+                res = disparar_ping(alvo, origem)
+                resultados_rodada.append(res)
+            
+            # Salva no excel
+            salvar_no_excel(resultados_rodada)
+            
+            # MENSAGEM DE CONCLUÍDO (Exatamente no minuto limite)
+            print(f"✅ CICLO DE MONITORAMENTO CONCLUÍDO!")
+            print(f"Aguardando {intervalo_min} minuto(s) para a próxima rodada...\n")
+            
+            # Espera o tempo definido
+            time.sleep(intervalo_min * 60)
+
+    except KeyboardInterrupt:
+        print(f"\n--- {SISTEMA} FINALIZADO ---")
     except Exception as e:
-        print(f"❌ Ocorreu um erro inesperado: {e}")
+        print(f"❌ Erro crítico: {e}")
