@@ -52,4 +52,8 @@ O arquivo log_ICMPaltomate.xlsx será gerado com as seguintes colunas:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | 20/02/2026 10:00:01 | ICMPaltomate | Wagner_PC | 8.8.8.8 | 15 | Online |
 
-Desenvolvido por Wagner Matheus de Faria
+Desenvolvido por Wagner Matheus de Faria.
+
+Este sistema foi desenvolvido 100% com tecnologia de I.A. Devemos começar a pensar que a I.A. veio para automatizar nossos processos, pois sistemas que levam dias para serem feitos podem simplesmente sair do seu próprio cérebro com a ajuda da inteligência artificial, levando apenas minutos ou horas.
+
+O que você precisa saber é como pedir, como estruturar e como implementar o seu sistema em um ambiente de produção.
